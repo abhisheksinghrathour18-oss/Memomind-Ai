@@ -12,3 +12,4 @@ export interface HealthCheckResponse {
   environment: string;
   database: DatabaseHealth;
 }
+

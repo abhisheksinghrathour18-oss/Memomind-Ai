@@ -21,3 +21,4 @@ export const queryJournalEntrySchema = z.object({
 });
 
 export type QueryJournalEntryInput = z.infer<typeof queryJournalEntrySchema>;
+

@@ -14,3 +14,4 @@ export interface JournalEntryContract {
   createdAt: Date | string;
   updatedAt: Date | string;
 }
+
