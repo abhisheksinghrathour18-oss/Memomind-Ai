@@ -23,3 +23,4 @@ describe('createJournalEntrySchema', () => {
     expect(result.success).toBe(false);
   });
 });
+
