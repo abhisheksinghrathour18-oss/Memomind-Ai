@@ -45,3 +45,4 @@ describe('Web API Client', () => {
     await expect(fetchHealth()).rejects.toThrow('Health check failed with status: 503');
   });
 });
+
