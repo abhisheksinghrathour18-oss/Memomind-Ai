@@ -58,3 +58,4 @@ describe('HealthController', () => {
     expect(mockResponse.status).toHaveBeenCalledWith(503);
   });
 });
+

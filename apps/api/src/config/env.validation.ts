@@ -33,3 +33,4 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
   }
   return validatedConfig;
 }
+
