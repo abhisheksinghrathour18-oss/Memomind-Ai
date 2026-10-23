@@ -34,3 +34,4 @@ model JournalEntry {
   @@index([createdAt])
   @@map("journal_entries")
 }
+
