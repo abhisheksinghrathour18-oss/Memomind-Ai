@@ -1,0 +1,204 @@
+# MemoMind AI — Monorepo
+
+> **Personalized AI Journal powered by Retrieval-Augmented Generation (RAG)**  
+> Capture private thoughts, build semantic personal memory, and ask natural-language questions grounded in your journal history.
+
+---
+
+## 1. Architecture Overview
+
+MemoMind AI is structured as a modular TypeScript monorepo managed with **pnpm workspaces**:
+
+```
+memomind-ai/
+├── apps/
+│   ├── api/                   # NestJS REST API (/api/v1)
+│   └── web/                   # Next.js 15 (App Router) + Tailwind CSS frontend
+├── packages/
+│   ├── database/              # Prisma schema, migrations & database client (PostgreSQL + pgvector)
+│   └── shared/                # Shared TypeScript contracts & Zod validation schemas
+├── docker-compose.yml         # PostgreSQL 16 with pgvector extension
+├── pnpm-workspace.yaml        # Workspace package definitions & build configurations
+├── package.json               # Root monorepo orchestration scripts
+├── .env.example               # Safe environment variable template
+└── README.md                  # This documentation
+```
+
+### Core Stack
+
+| Component | Technology | Description |
+|---|---|---|
+| **Frontend** | [Next.js 15](https://nextjs.org/), React 19, Tailwind CSS | App Router with responsive UI and system status dashboard |
+| **Backend** | [NestJS 10](https://nestjs.com/), TypeScript | REST API with `/api/v1` global prefix, validation pipes, and error filters |
+| **Database** | PostgreSQL 16 + [pgvector](https://github.com/pgvector/pgvector) | Vector-enabled relational store for journals and embeddings |
+| **ORM** | [Prisma 6](https://www.prisma.io/) | Schema definition, typed client, and automated migrations |
+| **Validation** | [Zod](https://zod.dev/) & [class-validator](https://github.com/typestack/class-validator) | Shared schemas across layers, DTO validation in NestJS |
+| **Testing** | [Vitest](https://vitest.dev/) | Fast, ESM-native unit testing across all workspaces |
+
+---
+
+## 2. Prerequisites
+
+Ensure the following tools are installed on your machine:
+
+- **Node.js**: `v20.x` or higher (`v24.x` recommended)
+- **pnpm**: `v11.x` or `v10.x` (`corepack enable pnpm`)
+- **Docker & Docker Compose**: `Docker 24+` / `Docker Compose v2+`
+
+---
+
+## 3. Getting Started
+
+### Step 1: Clone and install dependencies
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/memomind-ai.git
+cd memomind-ai
+
+# Install all monorepo dependencies
+pnpm install
+```
+
+### Step 2: Configure environment variables
+
+Copy the example configuration to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Review and adjust variables if needed. Safe defaults for local development:
+
+```env
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=memomind
+POSTGRES_PORT=5432
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/memomind?schema=public"
+
+PORT=4000
+NODE_ENV=development
+
+NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+```
+
+### Step 3: Start PostgreSQL with pgvector
+
+Launch the database container using Docker Compose:
+
+```bash
+pnpm docker:up
+```
+
+Verify that the pgvector container is healthy:
+
+```bash
+docker ps --filter "name=memomind-postgres"
+```
+
+### Step 4: Run Prisma database migrations
+
+Generate the Prisma Client and apply migrations to the database:
+
+```bash
+# Generate Prisma Client
+pnpm db:generate
+
+# Apply pending migrations
+pnpm db:migrate
+```
+
+*(For schema modifications during development, use `pnpm db:migrate:dev`)*.
+
+### Step 5: Start development servers
+
+You can run both frontend and backend concurrently or separately:
+
+```bash
+# Run both frontend and backend in parallel:
+pnpm dev
+
+# Or run separately:
+pnpm dev:api   # Starts NestJS on http://localhost:4000
+pnpm dev:web   # Starts Next.js on http://localhost:3000
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the web dashboard.
+
+---
+
+## 4. API Endpoints & Verification
+
+### Health Check
+
+The backend exposes a comprehensive health endpoint that verifies both database connectivity and the presence of the `pgvector` extension:
+
+```bash
+curl -s http://localhost:4000/api/v1/health | jq .
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-10-23T13:26:47.497Z",
+  "uptime": 42,
+  "environment": "development",
+  "database": {
+    "connected": true,
+    "pgvector": true,
+    "version": "0.8.7"
+  }
+}
+```
+
+---
+
+## 5. Available Scripts
+
+All standard lifecycle commands can be executed from the root:
+
+| Command | Action |
+|---|---|
+| `pnpm dev` | Starts API (`apps/api`) and Web (`apps/web`) in parallel |
+| `pnpm dev:api` | Starts only the NestJS API server in watch mode |
+| `pnpm dev:web` | Starts only the Next.js development server |
+| `pnpm build` | Recursively builds all packages and applications |
+| `pnpm lint` | Runs TypeScript and ESLint type checks across all workspaces |
+| `pnpm test` | Runs all Vitest test suites across the monorepo |
+| `pnpm db:generate` | Generates the typed Prisma Client from `schema.prisma` |
+| `pnpm db:migrate` | Deploys migrations to the target database |
+| `pnpm db:migrate:dev` | Creates and applies new migrations in development |
+| `pnpm db:push` | Pushes Prisma schema state directly without creating migrations |
+| `pnpm db:studio` | Opens Prisma Studio visual database editor |
+| `pnpm docker:up` | Starts the PostgreSQL container with pgvector |
+| `pnpm docker:down` | Stops the PostgreSQL container |
+| `pnpm docker:logs` | Tails Docker container logs |
+
+---
+
+## 6. Database Schema Design (Initial Foundation)
+
+The foundational Prisma schema in [`packages/database/prisma/schema.prisma`](packages/database/prisma/schema.prisma) defines:
+
+- **PostgreSQL Extension**:
+  - `vector`: Enabled via `previewFeatures = ["postgresqlExtensions"]` for embedding storage.
+
+- **`User` model** (`users` table):
+  - `id`: UUID primary key.
+  - `email`: Unique string identifier.
+  - `name`: Optional display name.
+  - `createdAt` / `updatedAt`: Automatic ISO timestamps.
+  - `entries`: Cascade relation to journal entries.
+
+- **`JournalEntry` model** (`journal_entries` table):
+  - `id`: UUID primary key.
+  - `title`: String entry heading.
+  - `content`: Full entry body (`Text`).
+  - `userId`: Foreign key with cascade deletion.
+  - `createdAt` / `updatedAt`: Timestamps with indexes on `[userId]` and `[createdAt]` for fast query filtering and timeline retrieval.
+
+---
+
