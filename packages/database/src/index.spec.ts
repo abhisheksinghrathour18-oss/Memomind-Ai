@@ -7,3 +7,4 @@ describe('Database client module', () => {
     expect(typeof PrismaClient).toBe('function');
   });
 });
+
