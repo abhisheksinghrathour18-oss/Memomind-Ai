@@ -154,6 +154,104 @@ curl -s http://localhost:4000/api/v1/health | jq .
 | `PATCH` | `/api/v1/journals/:id` | Protected | Update entry title/content (enforces owner validation) |
 | `DELETE` | `/api/v1/journals/:id` | Protected | Delete entry permanently (enforces owner validation) |
 | `POST` | `/api/v1/journals/:id/reindex` | Protected | Re-run vector embedding pipeline for owned entry |
+| `POST` | `/api/v1/rag/ask` | Protected | Ask a natural-language question grounded in the user's indexed journal entries |
+
+### RAG Question-Answering Endpoint (`POST /api/v1/rag/ask`)
+
+Ask a question against your private journal entries. The user ID is derived exclusively from the verified JWT session cookie—never from the request body.
+
+**Request:**
+
+```bash
+curl -X POST http://localhost:4000/api/v1/rag/ask \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "question": "What did I eat for breakfast on Tuesday?"
+  }'
+```
+
+**Example Response (`200 OK`):**
+
+```json
+{
+  "answer": "Your journal says you had oatmeal for breakfast.",
+  "sources": [
+    {
+      "entryId": "entry-id",
+      "title": "Tuesday morning",
+      "createdAt": "2026-10-20T08:15:00.000Z",
+      "excerpt": "I had oatmeal for breakfast..."
+    }
+  ]
+}
+```
+
+If no journal chunks meet the relevance threshold, the endpoint returns a grounded insufficient-evidence answer with `"sources": []` rather than hallucinating from general LLM knowledge.
+
+---
+
+## 5. AI Configuration: Embeddings, LLM Providers & RAG Pipeline
+
+### Separate Embedding and Chat Model Configuration
+
+MemoMind AI decouples **vector embedding generation** (`EMBEDDING_*`) from **chat completion generation** (`LLM_*`) so you can mix or match local and cloud models independently:
+
+- **Embeddings (`apps/api/src/ai/embeddings`)**: Used when indexing journal entries and embedding user questions for pgvector similarity search.
+- **LLM Chat (`apps/api/src/llm`)**: Used by `RagService` via the provider-neutral `LlmProvider` interface (`LLM_PROVIDER` token) to synthesize grounded answers from retrieved chunks.
+
+### Option A: Local Ollama Setup (`LLM_PROVIDER=ollama`)
+
+1. Install and start [Ollama](https://ollama.com) locally (`http://localhost:11434`).
+2. Pull a chat model (and optionally a local embedding model):
+   ```bash
+   ollama pull llama3.2
+   ```
+3. Configure `.env`:
+   ```env
+   LLM_PROVIDER=ollama
+   LLM_BASE_URL=http://localhost:11434/v1
+   LLM_MODEL=llama3.2
+   LLM_API_KEY=
+   ```
+   *(Local Ollama does not require `LLM_API_KEY` unless your endpoint sits behind an authenticated proxy.)*
+
+### Option B: Cloud OpenRouter Setup (`LLM_PROVIDER=openrouter`)
+
+1. Create an API key in [OpenRouter](https://openrouter.ai/keys).
+2. Configure `.env`:
+   ```env
+   LLM_PROVIDER=openrouter
+   LLM_BASE_URL=https://openrouter.ai/api/v1
+   LLM_MODEL=openai/gpt-4o-mini
+   LLM_API_KEY=sk-or-v1-your-key-here
+   ```
+
+### Switching Between Chat Providers
+
+To switch between local Ollama and OpenRouter, update `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_API_KEY` in `.env` and restart the API server. No changes to `RagService`, `RetrievalService`, or frontend code are required.
+
+### Retrieval Pipeline & Tenant-Isolation Strategy
+
+1. **Authentication Context**: `RagController` enforces `JwtAuthGuard` and extracts `userId` exclusively via `@CurrentUser('id')`. `ValidationPipe` (`whitelist: true, forbidNonWhitelisted: true`) rejects any request payload attempting to pass a `userId`.
+2. **Query Embedding**: `RetrievalService` generates a vector embedding for the normalized question using `EmbeddingsService`.
+3. **Database-Level Tenant Filtering**: `VectorStoreService.searchSimilar` executes a parameterized pgvector cosine similarity query (`1 - (embedding <=> $vector::vector)`) that joins `journal_vectors` and `journal_entries` with mandatory `WHERE jv."user_id" = $userId AND je."user_id" = $userId` filtering inside PostgreSQL before ranking and applying `LIMIT`. Vectors belonging to other users are never fetched into application memory.
+4. **Similarity Threshold & Top-K**: Chunks below `RAG_SIMILARITY_THRESHOLD` (default `0.25`) are filtered out, and at most `RAG_TOP_K` (default `5`) chunks are retained.
+5. **Grounded Prompt & Injection Defense**: `PromptBuilderService` enforces a character budget (`RAG_MAX_CONTEXT_CHARS`, default `6000`), neutralizes XML tag breakouts (`</untrusted_journal_context>`), and instructs the model to treat retrieved journal text strictly as untrusted data and never follow embedded override instructions or invent personal memories.
+6. **Deterministic Citations**: Source citations (`entryId`, `title`, `createdAt`, `excerpt`) are built directly from the authorized retrieved chunks rather than parsed from LLM output.
+
+### End-to-End RAG Verification & Testing
+
+```bash
+# Run all unit & integration test suites across all packages
+pnpm test
+
+# Type-check all workspaces
+pnpm lint
+
+# Build all packages and applications
+pnpm build
+```
 
 ### Hosted Supabase PostgreSQL & pgvector Setup
 
