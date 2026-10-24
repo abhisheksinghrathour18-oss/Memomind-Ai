@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -49,6 +50,7 @@ export default function DashboardPage() {
 
   // Deleting state
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reindexingId, setReindexingId] = useState<string | null>(null);
 
   // Feedback notifications
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -172,6 +174,23 @@ export default function DashboardPage() {
       showNotice('error', err instanceof Error ? err.message : 'Failed to delete entry');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleReindex = async (id: string) => {
+    setReindexingId(id);
+    try {
+      const updated = await journalApi.reindex(id);
+      if (updated.indexingStatus === 'INDEXED') {
+        showNotice('success', 'Vector indexing completed successfully');
+      } else {
+        showNotice('error', `Indexing failed: ${updated.indexingError || 'Provider error'}`);
+      }
+      loadEntries(page, search);
+    } catch (err: unknown) {
+      showNotice('error', err instanceof Error ? err.message : 'Failed to reindex entry');
+    } finally {
+      setReindexingId(null);
     }
   };
 
@@ -445,10 +464,43 @@ export default function DashboardPage() {
                       {entry.updatedAt !== entry.createdAt && (
                         <span>&bull; edited</span>
                       )}
+                      <span className="inline-flex items-center gap-1">
+                        &bull;
+                        {entry.indexingStatus === 'INDEXED' && (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium border border-emerald-200">
+                            Indexed (pgvector)
+                          </span>
+                        )}
+                        {entry.indexingStatus === 'PENDING' && (
+                          <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium border border-amber-200">
+                            Indexing...
+                          </span>
+                        )}
+                        {entry.indexingStatus === 'FAILED' && (
+                          <span
+                            className="text-red-700 bg-red-50 px-2 py-0.5 rounded font-medium border border-red-200 cursor-help"
+                            title={entry.indexingError || 'Indexing failed'}
+                          >
+                            Indexing Failed
+                          </span>
+                        )}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleReindex(entry.id)}
+                      disabled={reindexingId === entry.id}
+                      className="p-2 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                      title="Re-index Vector in pgvector"
+                    >
+                      {reindexingId === entry.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </button>
                     <button
                       onClick={() => handleStartEdit(entry)}
                       className="p-2 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors"

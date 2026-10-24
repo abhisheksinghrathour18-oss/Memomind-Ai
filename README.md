@@ -153,6 +153,7 @@ curl -s http://localhost:4000/api/v1/health | jq .
 | `GET` | `/api/v1/journals/:id` | Protected | Retrieve specific entry (enforces 404 cross-user isolation) |
 | `PATCH` | `/api/v1/journals/:id` | Protected | Update entry title/content (enforces owner validation) |
 | `DELETE` | `/api/v1/journals/:id` | Protected | Delete entry permanently (enforces owner validation) |
+| `POST` | `/api/v1/journals/:id/reindex` | Protected | Re-run vector embedding pipeline for owned entry |
 
 ### Hosted Supabase PostgreSQL & pgvector Setup
 
@@ -225,14 +226,19 @@ The Prisma schema in [`packages/database/prisma/schema.prisma`](packages/databas
   - `title`: String entry heading.
   - `content`: Full entry body (`Text`).
   - `userId`: Foreign key with cascade deletion.
-  - `createdAt` / `updatedAt`: Timestamps with indexes on `[userId]` and `[createdAt]` for fast query filtering and timeline retrieval.
+  - `indexingStatus`: Vector pipeline status (`PENDING`, `INDEXED`, `FAILED`).
+  - `indexingError`: Nullable diagnostic error string.
+  - `createdAt` / `updatedAt`: Timestamps with indexes on `[userId]`, `[createdAt]`, and `[indexingStatus]`.
+
+- **`JournalVector` model** (`journal_vectors` table):
+  - `id`: UUID primary key.
+  - `journalEntryId`: Foreign key to `journal_entries` with cascade delete.
+  - `userId`: Tenant identifier with index on `[userId]` for pre-filtered vector similarity queries.
+  - `chunkIndex`: Integer index of chunk within entry.
+  - `text`: Chunked text segment.
+  - `embedding`: Vector column (`vector(1536)`).
+  - Indexing: HNSW index (`journal_vectors_embedding_cosine_idx`) using `vector_cosine_ops` for fast similarity search.
 
 ---
 
-## 7. Roadmap & Next Steps
 
-- [x] **Milestone 0: Project Foundation & Monorepo Setup** (Complete)
-- [x] **Milestone 1: Authentication & Multi-Tenant Security** (Complete)
-- [x] **Milestone 2: Journal CRUD & Ownership Enforcement** (Complete)
-- [ ] **Milestone 3: Vector Embeddings & Vector Search with pgvector**
-- [ ] **Milestone 4: RAG Pipeline & Conversational Journal Assistant**

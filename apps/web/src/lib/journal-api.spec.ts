@@ -14,6 +14,7 @@ describe('journalApi client', () => {
           title: 'First Entry',
           content: 'Hello World',
           userId: 'user-1',
+          indexingStatus: 'INDEXED',
           createdAt: '2026-10-24T00:00:00.000Z',
           updatedAt: '2026-10-24T00:00:00.000Z',
         },
@@ -43,6 +44,7 @@ describe('journalApi client', () => {
       title: 'New',
       content: 'Content',
       userId: 'user-1',
+      indexingStatus: 'INDEXED',
       createdAt: '2026-10-24T00:00:00.000Z',
       updatedAt: '2026-10-24T00:00:00.000Z',
     };
@@ -62,6 +64,7 @@ describe('journalApi client', () => {
       title: 'Updated',
       content: 'Content',
       userId: 'user-1',
+      indexingStatus: 'INDEXED',
       createdAt: '2026-10-24T00:00:00.000Z',
       updatedAt: '2026-10-24T00:00:00.000Z',
     };
@@ -84,5 +87,28 @@ describe('journalApi client', () => {
     const result = await journalApi.delete('entry-2');
     expect(result.id).toBe('entry-2');
   });
-});
 
+  it('calls reindex endpoint for an entry', async () => {
+    const reindexed = {
+      id: 'entry-2',
+      title: 'Reindexed',
+      content: 'Content',
+      userId: 'user-1',
+      indexingStatus: 'INDEXED',
+      createdAt: '2026-10-24T00:00:00.000Z',
+      updatedAt: '2026-10-24T00:00:00.000Z',
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(reindexed),
+    });
+
+    const result = await journalApi.reindex('entry-2');
+    expect(result.indexingStatus).toBe('INDEXED');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/journals/entry-2/reindex'),
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+  });
+});
