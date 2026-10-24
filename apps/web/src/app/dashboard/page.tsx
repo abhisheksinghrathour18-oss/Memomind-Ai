@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
 import { journalApi } from '../../lib/journal-api';
+import { AiChatPanel } from '../../components/ai-chat-panel';
 import { JournalEntryContract, UserDto } from '@memomind/shared';
 import {
   User,
@@ -288,6 +289,9 @@ export default function DashboardPage() {
             {showCreateForm ? 'Cancel Entry' : 'New Journal Entry'}
           </button>
         </section>
+
+        {/* AI Chat / RAG Question Answering Panel */}
+        <AiChatPanel />
 
         {/* Create Entry Form */}
         {showCreateForm && (
