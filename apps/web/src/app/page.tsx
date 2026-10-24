@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { HealthCheckResponse } from '@memomind/shared';
 import { fetchHealth, API_BASE_URL } from '../lib/api';
-import { CheckCircle2, XCircle, RefreshCw, Database, Server, Cpu, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCw, Database, Server, Cpu, ShieldCheck, UserPlus, LogIn } from 'lucide-react';
 
 export default function Home() {
   const [health, setHealth] = useState<HealthCheckResponse | null>(null);
@@ -42,6 +43,28 @@ export default function Home() {
           Personalized AI Journal powered by Retrieval-Augmented Generation (RAG).
           Private entries, semantic memory, natural language recall.
         </p>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm transition-colors shadow-sm"
+          >
+            <LogIn className="w-4 h-4" />
+            Sign In
+          </Link>
+          <Link
+            href="/register"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium text-sm transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            Create Account
+          </Link>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition-colors"
+          >
+            Go to Dashboard
+          </Link>
+        </div>
       </header>
 
       {/* System Status Banner */}
