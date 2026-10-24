@@ -4,7 +4,7 @@ import { EmbeddingProvider } from './embedding-provider.interface';
 
 @Injectable()
 export class OpenAiEmbeddingProvider implements EmbeddingProvider {
-  readonly name = 'openai';
+  readonly name: string;
   readonly dimensions: number;
   private readonly apiKey?: string;
   private readonly baseUrl: string;
@@ -12,18 +12,33 @@ export class OpenAiEmbeddingProvider implements EmbeddingProvider {
   private readonly logger = new Logger(OpenAiEmbeddingProvider.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('EMBEDDING_API_KEY');
-    this.baseUrl = this.configService
-      .get<string>('EMBEDDING_BASE_URL', 'https://api.openai.com/v1')
-      .replace(/\/+$/, '');
-    this.model = this.configService.get<string>(
-      'EMBEDDING_MODEL',
-      'text-embedding-3-small',
-    );
+    this.name = this.configService.get<string>('EMBEDDING_PROVIDER', 'openai');
+    this.baseUrl = (
+      this.configService.get<string>('EMBEDDING_BASE_URL') ||
+      this.configService.get<string>('BASE_URL') ||
+      'https://api.openai.com/v1'
+    ).replace(/\/+$/, '');
+    this.model =
+      this.configService.get<string>('EMBEDDING_MODEL') ||
+      this.configService.get<string>('MODEL_NAME') ||
+      'text-embedding-3-small';
     this.dimensions = this.configService.get<number>(
       'EMBEDDING_DIMENSIONS',
       1536,
     );
+
+    const configuredKey = (
+      this.configService.get<string>('EMBEDDING_API_KEY') ||
+      this.configService.get<string>('API_KEY')
+    )?.trim();
+
+    // Local Ollama does not require an API key; default to 'ollama' when using local Ollama
+    const isLocalOllama =
+      this.name.toLowerCase() === 'ollama' ||
+      this.baseUrl.includes('localhost:11434') ||
+      this.baseUrl.includes('127.0.0.1:11434');
+
+    this.apiKey = configuredKey || (isLocalOllama ? 'ollama' : undefined);
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
@@ -43,11 +58,14 @@ export class OpenAiEmbeddingProvider implements EmbeddingProvider {
     }
 
     const endpoint = `${this.baseUrl}/embeddings`;
-    const payload = {
+    const payload: Record<string, unknown> = {
       input: texts,
       model: this.model,
-      dimensions: this.dimensions,
     };
+
+    if (this.model.includes('text-embedding-3')) {
+      payload.dimensions = this.dimensions;
+    }
 
     try {
       const response = await fetch(endpoint, {
