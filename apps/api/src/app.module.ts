@@ -7,6 +7,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { JournalsModule } from './journals/journals.module';
 import { AiModule } from './ai/ai.module';
+import { LlmModule } from './llm/llm.module';
+import { RagModule } from './rag/rag.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { AiModule } from './ai/ai.module';
     AuthModule,
     JournalsModule,
     AiModule,
+    LlmModule,
+    RagModule,
   ],
 })
 export class AppModule {}
