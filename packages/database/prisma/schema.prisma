@@ -10,29 +10,60 @@ generator client {
 }
 
 model User {
-  id           String         @id @default(uuid())
-  email        String         @unique
-  passwordHash String         @map("password_hash")
+  id           String          @id @default(uuid())
+  email        String          @unique
+  passwordHash String          @map("password_hash")
   name         String?
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
   entries      JournalEntry[]
+  vectors      JournalVector[]
 
   @@map("users")
 }
 
 model JournalEntry {
-  id        String   @id @default(uuid())
-  title     String
-  content   String   @db.Text
-  userId    String   @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String          @id @default(uuid())
+  title          String
+  content        String          @db.Text
+  userId         String          @map("user_id")
+  indexingStatus String          @default("PENDING") @map("indexing_status")
+  indexingError  String?         @map("indexing_error")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vectors JournalVector[]
 
   @@index([userId])
   @@index([createdAt])
+  @@index([indexingStatus])
   @@map("journal_entries")
+}
+
+model JournalVector {
+  id             String                      @id @default(uuid())
+  journalEntryId String                      @map("journal_entry_id")
+  userId         String                      @map("user_id")
+  chunkIndex     Int                         @map("chunk_index")
+  text           String                      @db.Text
+  embedding      Unsupported("vector(1536)")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  updatedAt      DateTime                    @updatedAt @map("updated_at")
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([journalEntryId])
+  @@map("journal_vectors")
+}
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([journalEntryId])
+  @@map("journal_vectors")
 }
 
