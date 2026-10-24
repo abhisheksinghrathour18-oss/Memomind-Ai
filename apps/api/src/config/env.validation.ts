@@ -26,6 +26,26 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   JWT_EXPIRES_IN: string = '7d';
+
+  @IsString()
+  @IsOptional()
+  EMBEDDING_PROVIDER: string = 'openai';
+
+  @IsString()
+  @IsOptional()
+  EMBEDDING_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  EMBEDDING_MODEL: string = 'text-embedding-3-small';
+
+  @IsString()
+  @IsOptional()
+  EMBEDDING_BASE_URL: string = 'https://api.openai.com/v1';
+
+  @IsNumber()
+  @IsOptional()
+  EMBEDDING_DIMENSIONS: number = 1536;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
@@ -41,4 +61,3 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
   }
   return validatedConfig;
 }
-
