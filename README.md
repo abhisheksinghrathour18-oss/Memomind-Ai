@@ -140,7 +140,7 @@ The backend exposes a comprehensive health endpoint that verifies both database 
 curl -s http://localhost:4000/api/v1/health | jq .
 ```
 
-### Authentication & Multi-Tenant Endpoints
+### Authentication & Journal Endpoints
 
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
@@ -149,8 +149,36 @@ curl -s http://localhost:4000/api/v1/health | jq .
 | `POST` | `/api/v1/auth/logout` | Public | Clears authentication cookie |
 | `GET` | `/api/v1/auth/me` | Protected | Returns current authenticated user profile (`UserDto`) |
 | `POST` | `/api/v1/journals` | Protected | Create journal entry scoped to authenticated tenant ID |
-| `GET` | `/api/v1/journals` | Protected | List only journal entries owned by authenticated user |
-| `GET` | `/api/v1/journals/:id` | Protected | Retrieve specific entry (enforces 403/404 cross-user isolation) |
+| `GET` | `/api/v1/journals` | Protected | List entries owned by user (supports `?page=1&limit=10&search=...`) |
+| `GET` | `/api/v1/journals/:id` | Protected | Retrieve specific entry (enforces 404 cross-user isolation) |
+| `PATCH` | `/api/v1/journals/:id` | Protected | Update entry title/content (enforces owner validation) |
+| `DELETE` | `/api/v1/journals/:id` | Protected | Delete entry permanently (enforces owner validation) |
+
+### Hosted Supabase PostgreSQL & pgvector Setup
+
+To deploy or connect to a hosted Supabase instance:
+
+1. **Create Supabase Project**:
+   Create a new project in your [Supabase Dashboard](https://supabase.com).
+
+2. **Enable pgvector Extension**:
+   Go to **Database** &rarr; **Extensions** &rarr; search for `vector` and enable it, or run:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+
+3. **Configure Environment Connection String**:
+   In `.env`, configure `DATABASE_URL` with your Supabase direct connection or session pooler URL:
+   ```env
+   # Session mode (port 5432) or direct connection:
+   DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres?sslmode=require"
+   ```
+
+4. **Deploy Migrations**:
+   Run the Prisma migration deploy command to apply all migrations directly to Supabase:
+   ```bash
+   pnpm db:migrate
+   ```
 
 ---
 
@@ -201,4 +229,10 @@ The Prisma schema in [`packages/database/prisma/schema.prisma`](packages/databas
 
 ---
 
+## 7. Roadmap & Next Steps
 
+- [x] **Milestone 0: Project Foundation & Monorepo Setup** (Complete)
+- [x] **Milestone 1: Authentication & Multi-Tenant Security** (Complete)
+- [x] **Milestone 2: Journal CRUD & Ownership Enforcement** (Complete)
+- [ ] **Milestone 3: Vector Embeddings & Vector Search with pgvector**
+- [ ] **Milestone 4: RAG Pipeline & Conversational Journal Assistant**
