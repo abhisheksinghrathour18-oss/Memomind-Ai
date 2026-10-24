@@ -18,6 +18,14 @@ export class EnvironmentVariables {
 
   @IsString()
   DATABASE_URL!: string;
+
+  @IsString()
+  @IsOptional()
+  JWT_SECRET: string = 'memomind-dev-secret-change-in-production-min-32-chars';
+
+  @IsString()
+  @IsOptional()
+  JWT_EXPIRES_IN: string = '7d';
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
