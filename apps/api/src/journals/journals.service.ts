@@ -1,25 +1,41 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
-import { JournalEntryContract, PaginatedJournalsResponse } from '@memomind/shared';
+import {
+  IndexingStatus,
+  JournalEntryContract,
+  PaginatedJournalsResponse,
+} from '@memomind/shared';
 import { Prisma } from '@memomind/database';
+import { EmbeddingsService } from '../ai/embeddings/embeddings.service';
+import { ChunkingService } from '../ai/chunking/chunking.service';
+import { VectorStoreService } from '../ai/vector-store/vector-store.service';
 
 @Injectable()
 export class JournalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(JournalsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly embeddingsService: EmbeddingsService,
+    private readonly chunkingService: ChunkingService,
+    private readonly vectorStoreService: VectorStoreService,
+  ) {}
 
   private mapToContract(entry: {
     id: string;
     title: string;
     content: string;
     userId: string;
+    indexingStatus: string;
+    indexingError: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): JournalEntryContract {
@@ -28,21 +44,87 @@ export class JournalsService {
       title: entry.title,
       content: entry.content,
       userId: entry.userId,
+      indexingStatus: entry.indexingStatus as IndexingStatus,
+      indexingError: entry.indexingError,
       createdAt: entry.createdAt.toISOString(),
       updatedAt: entry.updatedAt.toISOString(),
     };
   }
 
+  /**
+   * Internal pipeline: Chunks text, generates real embeddings, and indexes in pgvector.
+   * Handles partial failure gracefully without dropping the relational entry.
+   */
+  private async indexEntryContent(
+    entryId: string,
+    userId: string,
+    content: string,
+  ): Promise<{ status: IndexingStatus; error?: string }> {
+    try {
+      const chunks = this.chunkingService.chunk(content);
+      if (!chunks.length) {
+        await this.vectorStoreService.deleteVectors(entryId, userId);
+        return { status: 'INDEXED' };
+      }
+
+      const embeddings = await this.embeddingsService.generateEmbeddings(
+        chunks.map((c) => c.text),
+      );
+
+      const vectorInserts = chunks.map((chunk, idx) => ({
+        chunkIndex: chunk.chunkIndex,
+        text: chunk.text,
+        embedding: embeddings[idx],
+      }));
+
+      await this.vectorStoreService.upsertVectors(entryId, userId, vectorInserts);
+
+      await this.prisma.journalEntry.update({
+        where: { id: entryId },
+        data: {
+          indexingStatus: 'INDEXED',
+          indexingError: null,
+        },
+      });
+
+      return { status: 'INDEXED' };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `[IndexingPipeline] Indexing failed for entry ${entryId}: ${errorMsg}`,
+      );
+
+      await this.prisma.journalEntry.update({
+        where: { id: entryId },
+        data: {
+          indexingStatus: 'FAILED',
+          indexingError: errorMsg,
+        },
+      });
+
+      return { status: 'FAILED', error: errorMsg };
+    }
+  }
+
   async create(userId: string, dto: CreateJournalDto): Promise<JournalEntryContract> {
+    // 1. Create relational entry first (ensures user data is never lost)
     const entry = await this.prisma.journalEntry.create({
       data: {
         title: dto.title,
         content: dto.content,
-        userId, // Strictly derived from server-side authenticated session
+        userId,
+        indexingStatus: 'PENDING',
       },
     });
 
-    return this.mapToContract(entry);
+    // 2. Execute vector indexing pipeline
+    const indexResult = await this.indexEntryContent(entry.id, userId, entry.content);
+
+    return this.mapToContract({
+      ...entry,
+      indexingStatus: indexResult.status,
+      indexingError: indexResult.error ?? null,
+    });
   }
 
   async findAll(
@@ -54,7 +136,7 @@ export class JournalsService {
     const skip = (page - 1) * limit;
 
     const whereClause: Prisma.JournalEntryWhereInput = {
-      userId, // Strict tenant-isolation condition in SQL query
+      userId,
     };
 
     if (query.search && query.search.trim()) {
@@ -91,12 +173,7 @@ export class JournalsService {
       where: { id },
     });
 
-    if (!entry) {
-      throw new NotFoundException('Journal entry not found');
-    }
-
-    // Tenant boundary: prevent access to another tenant's resource without leaking contents
-    if (entry.userId !== userId) {
+    if (!entry || entry.userId !== userId) {
       throw new NotFoundException('Journal entry not found');
     }
 
@@ -118,12 +195,7 @@ export class JournalsService {
       where: { id },
     });
 
-    if (!existing) {
-      throw new NotFoundException('Journal entry not found');
-    }
-
-    // Tenant boundary check
-    if (existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
       throw new NotFoundException('Journal entry not found');
     }
 
@@ -135,6 +207,16 @@ export class JournalsService {
       },
     });
 
+    // If content changed, re-index to replace stale vectors
+    if (dto.content !== undefined && dto.content !== existing.content) {
+      const indexResult = await this.indexEntryContent(id, userId, dto.content);
+      return this.mapToContract({
+        ...updated,
+        indexingStatus: indexResult.status,
+        indexingError: indexResult.error ?? null,
+      });
+    }
+
     return this.mapToContract(updated);
   }
 
@@ -143,15 +225,14 @@ export class JournalsService {
       where: { id },
     });
 
-    if (!existing) {
+    if (!existing || existing.userId !== userId) {
       throw new NotFoundException('Journal entry not found');
     }
 
-    // Tenant boundary check
-    if (existing.userId !== userId) {
-      throw new NotFoundException('Journal entry not found');
-    }
+    // 1. Delete associated vectors first (tenant-scoped)
+    await this.vectorStoreService.deleteVectors(id, userId);
 
+    // 2. Delete relational entry
     await this.prisma.journalEntry.delete({
       where: { id },
     });
@@ -160,5 +241,23 @@ export class JournalsService {
       message: 'Journal entry deleted successfully',
       id,
     };
+  }
+
+  async reindex(userId: string, id: string): Promise<JournalEntryContract> {
+    const existing = await this.prisma.journalEntry.findUnique({
+      where: { id },
+    });
+
+    if (!existing || existing.userId !== userId) {
+      throw new NotFoundException('Journal entry not found');
+    }
+
+    const indexResult = await this.indexEntryContent(id, userId, existing.content);
+
+    return this.mapToContract({
+      ...existing,
+      indexingStatus: indexResult.status,
+      indexingError: indexResult.error ?? null,
+    });
   }
 }

@@ -88,5 +88,13 @@ export const journalApi = {
 
     return handleResponse<{ message: string; id: string }>(res);
   },
-};
 
+  async reindex(id: string): Promise<JournalEntryContract> {
+    const res = await fetch(`${API_BASE_URL}/journals/${id}/reindex`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    return handleResponse<JournalEntryContract>(res);
+  },
+};
