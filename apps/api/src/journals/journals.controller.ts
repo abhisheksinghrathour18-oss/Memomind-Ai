@@ -66,4 +66,13 @@ export class JournalsController {
   ): Promise<{ message: string; id: string }> {
     return this.journalsService.delete(userId, id);
   }
+
+  @Post(':id/reindex')
+  @HttpCode(HttpStatus.OK)
+  async reindex(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ): Promise<JournalEntryContract> {
+    return this.journalsService.reindex(userId, id);
+  }
 }
