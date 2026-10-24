@@ -28,8 +28,8 @@ memomind-ai/
 
 | Component | Technology | Description |
 |---|---|---|
-| **Frontend** | [Next.js 15](https://nextjs.org/), React 19, Tailwind CSS | App Router with responsive UI and system status dashboard |
-| **Backend** | [NestJS 10](https://nestjs.com/), TypeScript | REST API with `/api/v1` global prefix, validation pipes, and error filters |
+| **Frontend** | [Next.js 15](https://nextjs.org/), React 19, Tailwind CSS | App Router with auth pages, dashboard shell, and system status |
+| **Backend** | [NestJS 10](https://nestjs.com/), TypeScript | REST API with `/api/v1` global prefix, JWT cookie auth, and tenant isolation |
 | **Database** | PostgreSQL 16 + [pgvector](https://github.com/pgvector/pgvector) | Vector-enabled relational store for journals and embeddings |
 | **ORM** | [Prisma 6](https://www.prisma.io/) | Schema definition, typed client, and automated migrations |
 | **Validation** | [Zod](https://zod.dev/) & [class-validator](https://github.com/typestack/class-validator) | Shared schemas across layers, DTO validation in NestJS |
@@ -79,6 +79,8 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/memomind?schema=publ
 
 PORT=4000
 NODE_ENV=development
+JWT_SECRET=your-32-character-secret-key-goes-here-in-production
+JWT_EXPIRES_IN=7d
 
 NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 ```
@@ -138,21 +140,17 @@ The backend exposes a comprehensive health endpoint that verifies both database 
 curl -s http://localhost:4000/api/v1/health | jq .
 ```
 
-Example response:
+### Authentication & Multi-Tenant Endpoints
 
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-10-23T13:26:47.497Z",
-  "uptime": 42,
-  "environment": "development",
-  "database": {
-    "connected": true,
-    "pgvector": true,
-    "version": "0.8.7"
-  }
-}
-```
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | Public | Register new user with Argon2id password hash |
+| `POST` | `/api/v1/auth/login` | Public | Login with email/password; sets secure HTTP-only JWT cookie |
+| `POST` | `/api/v1/auth/logout` | Public | Clears authentication cookie |
+| `GET` | `/api/v1/auth/me` | Protected | Returns current authenticated user profile (`UserDto`) |
+| `POST` | `/api/v1/journals` | Protected | Create journal entry scoped to authenticated tenant ID |
+| `GET` | `/api/v1/journals` | Protected | List only journal entries owned by authenticated user |
+| `GET` | `/api/v1/journals/:id` | Protected | Retrieve specific entry (enforces 403/404 cross-user isolation) |
 
 ---
 
@@ -179,9 +177,9 @@ All standard lifecycle commands can be executed from the root:
 
 ---
 
-## 6. Database Schema Design (Initial Foundation)
+## 6. Database Schema Design
 
-The foundational Prisma schema in [`packages/database/prisma/schema.prisma`](packages/database/prisma/schema.prisma) defines:
+The Prisma schema in [`packages/database/prisma/schema.prisma`](packages/database/prisma/schema.prisma) defines:
 
 - **PostgreSQL Extension**:
   - `vector`: Enabled via `previewFeatures = ["postgresqlExtensions"]` for embedding storage.
@@ -189,6 +187,7 @@ The foundational Prisma schema in [`packages/database/prisma/schema.prisma`](pac
 - **`User` model** (`users` table):
   - `id`: UUID primary key.
   - `email`: Unique string identifier.
+  - `passwordHash`: Argon2id hashed password string.
   - `name`: Optional display name.
   - `createdAt` / `updatedAt`: Automatic ISO timestamps.
   - `entries`: Cascade relation to journal entries.
@@ -201,4 +200,5 @@ The foundational Prisma schema in [`packages/database/prisma/schema.prisma`](pac
   - `createdAt` / `updatedAt`: Timestamps with indexes on `[userId]` and `[createdAt]` for fast query filtering and timeline retrieval.
 
 ---
+
 
