@@ -11,7 +11,14 @@ export interface JournalEntryContract {
   title: string;
   content: string;
   userId: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  createdAt: string;
+  updatedAt: string;
 }
 
+export interface PaginatedJournalsResponse {
+  items: JournalEntryContract[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
