@@ -74,8 +74,8 @@ Review and adjust variables if needed. Safe defaults for local development:
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=memomind
-POSTGRES_PORT=5432
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/memomind?schema=public"
+POSTGRES_PORT=5438
+DATABASE_URL="postgresql://postgres:postgres@localhost:5438/memomind?schema=public"
 
 PORT=4000
 NODE_ENV=development
