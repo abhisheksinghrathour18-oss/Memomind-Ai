@@ -1,3 +1,6 @@
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- AlterTable
 ALTER TABLE "journal_entries" ADD COLUMN     "indexing_error" TEXT,
 ADD COLUMN     "indexing_status" TEXT NOT NULL DEFAULT 'PENDING';

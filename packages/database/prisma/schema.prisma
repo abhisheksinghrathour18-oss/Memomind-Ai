@@ -23,14 +23,14 @@ model User {
 }
 
 model JournalEntry {
-  id             String          @id @default(uuid())
+  id             String   @id @default(uuid())
   title          String
-  content        String          @db.Text
-  userId         String          @map("user_id")
-  indexingStatus String          @default("PENDING") @map("indexing_status")
-  indexingError  String?         @map("indexing_error")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  content        String   @db.Text
+  userId         String   @map("user_id")
+  indexingStatus String   @default("PENDING") @map("indexing_status")
+  indexingError  String?  @map("indexing_error")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   vectors JournalVector[]
@@ -58,12 +58,3 @@ model JournalVector {
   @@index([journalEntryId])
   @@map("journal_vectors")
 }
-
-  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([journalEntryId])
-  @@map("journal_vectors")
-}
-
