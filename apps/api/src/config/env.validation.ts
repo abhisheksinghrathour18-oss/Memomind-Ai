@@ -7,6 +7,11 @@ export enum Environment {
   Test = 'test',
 }
 
+export enum LlmProviderType {
+  Ollama = 'ollama',
+  OpenRouter = 'openrouter',
+}
+
 export class EnvironmentVariables {
   @IsEnum(Environment)
   @IsOptional()
@@ -46,7 +51,38 @@ export class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
   EMBEDDING_DIMENSIONS: number = 1536;
+
+  @IsEnum(LlmProviderType, {
+    message: 'LLM_PROVIDER must be either "ollama" or "openrouter"',
+  })
+  @IsOptional()
+  LLM_PROVIDER: LlmProviderType = LlmProviderType.Ollama;
+
+  @IsString()
+  @IsOptional()
+  LLM_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  LLM_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  LLM_MODEL?: string;
+
+  @IsNumber()
+  @IsOptional()
+  RAG_TOP_K: number = 5;
+
+  @IsNumber()
+  @IsOptional()
+  RAG_SIMILARITY_THRESHOLD: number = 0.25;
+
+  @IsNumber()
+  @IsOptional()
+  RAG_MAX_CONTEXT_CHARS: number = 6000;
 }
+
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
